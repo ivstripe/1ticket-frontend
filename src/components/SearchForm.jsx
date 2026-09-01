@@ -17,7 +17,7 @@ export default function SearchForm() {
     setLoading(true);
     
     try {
-      const response = await fetch('https://1ticket-backend-production.railway.app/api/search-flights', {
+      const response = await fetch('https://1ticket-backend-production.up.railway.app/api/search-flights', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
