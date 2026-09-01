@@ -12,7 +12,7 @@ export default function SearchForm() {
   const [passengers, setPassengers] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const BACKEND_URL = 'https://YOUR-RAILWAY-URL';
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://1ticket-backend-production.up.railway.app';
 
   const searchAirport = async (query, type) => {
     if (query.length < 2) return;
