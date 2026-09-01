@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import '../styles/SearchForm.css';
+
+const DEBOUNCE_MS = 300;
 
 export default function SearchForm() {
   const [fromInput, setFromInput] = useState('');
@@ -14,13 +16,13 @@ export default function SearchForm() {
 
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://1ticket-backend-production.up.railway.app';
 
-  const searchAirport = async (query, type) => {
-    console.log(`[searchAirport] called: type=${type} query="${query}"`);
+  // Guards against stale, out-of-order responses overwriting a newer selection
+  const requestIdRef = useRef({ from: 0, to: 0 });
+  const debounceRef = useRef({ from: null, to: null });
 
-    if (query.length < 2) {
-      console.log('[searchAirport] query too short, skipping fetch');
-      return;
-    }
+  const runAirportSearch = async (query, type) => {
+    const requestId = ++requestIdRef.current[type];
+    console.log(`[searchAirport] called: type=${type} query="${query}" requestId=${requestId}`);
 
     const url = `${BACKEND_URL}/api/search-airport`;
     console.log(`[searchAirport] fetching ${url}`);
@@ -32,7 +34,12 @@ export default function SearchForm() {
         body: JSON.stringify({ query })
       });
       const data = await response.json();
-      console.log(`[searchAirport] response status=${response.status}`, data);
+      console.log(`[searchAirport] response status=${response.status} requestId=${requestId}`, data);
+
+      if (requestId !== requestIdRef.current[type]) {
+        console.log(`[searchAirport] discarding stale response for "${type}" (requestId=${requestId}, latest=${requestIdRef.current[type]})`);
+        return;
+      }
 
       if (!response.ok || !data.success) {
         console.error('[searchAirport] backend returned an error:', data.error || data.message || 'unknown error');
@@ -49,19 +56,34 @@ export default function SearchForm() {
     }
   };
 
+  const searchAirport = (query, type) => {
+    clearTimeout(debounceRef.current[type]);
+
+    if (query.length < 2) {
+      console.log(`[searchAirport] query too short, skipping fetch: type=${type} query="${query}"`);
+      requestIdRef.current[type]++;
+      if (type === 'from') setFromSuggestions([]);
+      if (type === 'to') setToSuggestions([]);
+      return;
+    }
+
+    debounceRef.current[type] = setTimeout(() => runAirportSearch(query, type), DEBOUNCE_MS);
+  };
+
   const selectAirport = (airport, type) => {
-    const skyId = airport.navigation.relevantFlightParams.skyId;
-    const entityId = airport.navigation.relevantFlightParams.entityId;
-    const name = airport.presentation.suggestionTitle;
-    console.log(`[selectAirport] type=${type} name="${name}" skyId=${skyId} entityId=${entityId}`);
+    const { code, name } = airport;
+    console.log(`[selectAirport] type=${type} name="${name}" code=${code}`);
+
+    clearTimeout(debounceRef.current[type]);
+    requestIdRef.current[type]++;
 
     if (type === 'from') {
       setFromInput(name);
-      setFromAirport({ skyId, entityId });
+      setFromAirport({ code });
       setFromSuggestions([]);
     } else {
       setToInput(name);
-      setToAirport({ skyId, entityId });
+      setToAirport({ code });
       setToSuggestions([]);
     }
   };
@@ -79,10 +101,8 @@ export default function SearchForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fromSkyId: fromAirport.skyId,
-          fromEntityId: fromAirport.entityId,
-          toSkyId: toAirport.skyId,
-          toEntityId: toAirport.entityId,
+          fromCode: fromAirport.code,
+          toCode: toAirport.code,
           date,
           passengers
         })
@@ -130,8 +150,8 @@ export default function SearchForm() {
                 className="suggestion-item"
                 onClick={() => selectAirport(airport, 'from')}
               >
-                {airport.presentation.suggestionTitle}
-                <span>{airport.presentation.subtitle}</span>
+                {airport.name}
+                <span>{airport.code}</span>
               </div>
             ))}
           </div>
@@ -159,8 +179,8 @@ export default function SearchForm() {
                 className="suggestion-item"
                 onClick={() => selectAirport(airport, 'to')}
               >
-                {airport.presentation.suggestionTitle}
-                <span>{airport.presentation.subtitle}</span>
+                {airport.name}
+                <span>{airport.code}</span>
               </div>
             ))}
           </div>
