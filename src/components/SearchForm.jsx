@@ -8,7 +8,7 @@ export default function SearchForm() {
   const [passengers, setPassengers] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async () => {
+   const handleSearch = async () => {
     if (!from || !to || !date) {
       alert('Please fill all fields');
       return;
@@ -16,8 +16,31 @@ export default function SearchForm() {
 
     setLoading(true);
     
-    // TODO: Call backend API here (will add later)
-    console.log('Searching:', { from, to, date, passengers });
+    try {
+      const response = await fetch('https://1ticket-backend-production.railway.app/api/search-flights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fromSkyId: from,
+          toSkyId: to,
+          date,
+          passengers
+        })
+      });
+
+      const data = await response.json();
+      console.log('Results:', data);
+      
+      if (data.success && data.data.length > 0) {
+        alert(`Found ${data.data.length} flights!`);
+      } else {
+        alert('No flights found for this route');
+      }
+    } catch (error) {
+      alert('Error searching flights: ' + error.message);
+    }
     
     setLoading(false);
   };
