@@ -15,20 +15,37 @@ export default function SearchForm() {
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://1ticket-backend-production.up.railway.app';
 
   const searchAirport = async (query, type) => {
-    if (query.length < 2) return;
-    
+    console.log(`[searchAirport] called: type=${type} query="${query}"`);
+
+    if (query.length < 2) {
+      console.log('[searchAirport] query too short, skipping fetch');
+      return;
+    }
+
+    const url = `${BACKEND_URL}/api/search-airport`;
+    console.log(`[searchAirport] fetching ${url}`);
+
     try {
-      const response = await fetch(`${BACKEND_URL}/api/search-airport`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })
       });
       const data = await response.json();
-      
-      if (type === 'from') setFromSuggestions(data.data || []);
-      if (type === 'to') setToSuggestions(data.data || []);
+      console.log(`[searchAirport] response status=${response.status}`, data);
+
+      if (!response.ok || !data.success) {
+        console.error('[searchAirport] backend returned an error:', data.error || data.message || 'unknown error');
+        if (type === 'from') setFromSuggestions([]);
+        if (type === 'to') setToSuggestions([]);
+        return;
+      }
+
+      console.log(`[searchAirport] storing ${data.data.length} suggestions for "${type}"`);
+      if (type === 'from') setFromSuggestions(data.data);
+      if (type === 'to') setToSuggestions(data.data);
     } catch (error) {
-      console.error('Airport search error:', error);
+      console.error('[searchAirport] fetch failed:', error);
     }
   };
 
@@ -36,6 +53,7 @@ export default function SearchForm() {
     const skyId = airport.navigation.relevantFlightParams.skyId;
     const entityId = airport.navigation.relevantFlightParams.entityId;
     const name = airport.presentation.suggestionTitle;
+    console.log(`[selectAirport] type=${type} name="${name}" skyId=${skyId} entityId=${entityId}`);
 
     if (type === 'from') {
       setFromInput(name);
@@ -84,6 +102,8 @@ export default function SearchForm() {
 
     setLoading(false);
   };
+
+  console.log(`[render] fromSuggestions=${fromSuggestions.length} toSuggestions=${toSuggestions.length}`);
 
   return (
     <div className="search-form">
